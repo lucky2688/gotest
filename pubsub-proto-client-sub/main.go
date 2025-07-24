@@ -8,7 +8,7 @@ import (
 	pb "github.com/lucky2688/gotest/pubsub-proto/protobuf"
 )
 
-// gRPC 客户端 发布
+// gRPC 客户端 订阅
 func main() {
 	conn, err := grpc.Dial("localhost:1234", grpc.WithInsecure())
 	if err != nil {
