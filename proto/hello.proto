@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option go_package = "./protobuf";
+
+package main;
+
+message String {
+  string value = 1;
+}
+
+service HelloService {
+  rpc Hello (String) returns (String);
+  rpc Channel (stream String) returns (stream String);
+}
+
+
+/*
+
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+
+bash中运行  protoc --go_out=. --go-grpc_out=. pubsub.proto
+
+
+lucky@DESKTOP-OG5FQBI MINGW64 /c/projectgo/gotest (main)
+$ cd proto/
+
+lucky@DESKTOP-OG5FQBI MINGW64 /c/projectgo/gotest/proto (main)
+$ protoc --go_out=. --go-grpc_out=. hello.proto
+
+*/
