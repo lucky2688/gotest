@@ -65,16 +65,112 @@ func (x *String) GetValue() string {
 	return ""
 }
 
+type HelloRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HelloRequest) Reset() {
+	*x = HelloRequest{}
+	mi := &file_hello_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HelloRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HelloRequest) ProtoMessage() {}
+
+func (x *HelloRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_hello_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HelloRequest.ProtoReflect.Descriptor instead.
+func (*HelloRequest) Descriptor() ([]byte, []int) {
+	return file_hello_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *HelloRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type HelloReply struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HelloReply) Reset() {
+	*x = HelloReply{}
+	mi := &file_hello_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HelloReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HelloReply) ProtoMessage() {}
+
+func (x *HelloReply) ProtoReflect() protoreflect.Message {
+	mi := &file_hello_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HelloReply.ProtoReflect.Descriptor instead.
+func (*HelloReply) Descriptor() ([]byte, []int) {
+	return file_hello_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *HelloReply) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_hello_proto protoreflect.FileDescriptor
 
 const file_hello_proto_rawDesc = "" +
 	"\n" +
 	"\vhello.proto\x12\x04main\"\x1e\n" +
 	"\x06String\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\tR\x05value2a\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\"\"\n" +
+	"\fHelloRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"&\n" +
+	"\n" +
+	"HelloReply\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage2a\n" +
 	"\rPubsubService\x12%\n" +
 	"\aPublish\x12\f.main.String\x1a\f.main.String\x12)\n" +
-	"\tSubscribe\x12\f.main.String\x1a\f.main.String0\x01B\fZ\n" +
+	"\tSubscribe\x12\f.main.String\x1a\f.main.String0\x012B\n" +
+	"\fHelloService\x122\n" +
+	"\n" +
+	"SomeMethod\x12\x12.main.HelloRequest\x1a\x10.main.HelloReplyB\fZ\n" +
 	"./protobufb\x06proto3"
 
 var (
@@ -89,17 +185,21 @@ func file_hello_proto_rawDescGZIP() []byte {
 	return file_hello_proto_rawDescData
 }
 
-var file_hello_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_hello_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_hello_proto_goTypes = []any{
-	(*String)(nil), // 0: main.String
+	(*String)(nil),       // 0: main.String
+	(*HelloRequest)(nil), // 1: main.HelloRequest
+	(*HelloReply)(nil),   // 2: main.HelloReply
 }
 var file_hello_proto_depIdxs = []int32{
 	0, // 0: main.PubsubService.Publish:input_type -> main.String
 	0, // 1: main.PubsubService.Subscribe:input_type -> main.String
-	0, // 2: main.PubsubService.Publish:output_type -> main.String
-	0, // 3: main.PubsubService.Subscribe:output_type -> main.String
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
+	1, // 2: main.HelloService.SomeMethod:input_type -> main.HelloRequest
+	0, // 3: main.PubsubService.Publish:output_type -> main.String
+	0, // 4: main.PubsubService.Subscribe:output_type -> main.String
+	2, // 5: main.HelloService.SomeMethod:output_type -> main.HelloReply
+	3, // [3:6] is the sub-list for method output_type
+	0, // [0:3] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -116,9 +216,9 @@ func file_hello_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_hello_proto_rawDesc), len(file_hello_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   3,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_hello_proto_goTypes,
 		DependencyIndexes: file_hello_proto_depIdxs,

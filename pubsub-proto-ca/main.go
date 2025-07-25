@@ -4,17 +4,21 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/moby/pubsub"
 	"google.golang.org/grpc"
 
-	pb "github.com/lucky2688/gotest/pubsub-proto/protobuf"
+	pb "github.com/lucky2688/gotest/pubsub-proto-ca/protobuf" //注意自己的路径
 )
 
 type PubsubService struct {
@@ -51,20 +55,57 @@ func (p *PubsubService) Subscribe(filter *pb.String, stream pb.PubsubService_Sub
 	return nil
 }
 
+// 加入token认证
+type Authentication struct {
+	User     string
+	Password string
+}
+type helloService struct {
+	pb.UnimplementedHelloServiceServer
+	auth *Authentication
+}
+
+func (a *Authentication) Auth(ctx context.Context) error {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return fmt.Errorf("missing credentials")
+	}
+
+	var appid, appkey string
+
+	if val, ok := md["user"]; ok {
+		appid = val[0]
+	}
+	if val, ok := md["password"]; ok {
+		appkey = val[0]
+	}
+
+	if appid != a.User || appkey != a.Password {
+		return grpc.Errorf(codes.Unauthenticated, "invalid token")
+	}
+
+	return nil
+}
+
 // gRPC 服务端
 func main() {
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Getwd error: %v", err)
+	}
+	fmt.Println("Working dir:", dir)
 	lis, err := net.Listen("tcp", ":1234")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	certificate, err := tls.LoadX509KeyPair("server.crt", "server.key")
+	certificate, err := tls.LoadX509KeyPair("pubsub-proto-ca/server.crt", "pubsub-proto-ca/server.key")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	certPool := x509.NewCertPool()
-	ca, err := ioutil.ReadFile("ca.crt")
+	ca, err := ioutil.ReadFile("pubsub-proto-ca/ca.crt")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -81,13 +122,39 @@ func main() {
 
 	pb.RegisterPubsubServiceServer(grpcServer, NewPubsubService())
 
+	// 注册 HelloService
+	auth := &Authentication{
+		User:     "admin",
+		Password: "123456",
+	}
+	pb.RegisterHelloServiceServer(grpcServer, &helloService{auth: auth}) // &helloService{} 不开启token认证
+
 	log.Println("gRPC Pubsub server started on :1234")
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }
 
+func (s *helloService) SomeMethod(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
+	log.Printf("Received from client: %s", in.GetName())
+
+	// 示例：可选权限认证
+	if s.auth != nil {
+		if err := s.auth.Auth(ctx); err != nil {
+			return nil, err
+		}
+	}
+
+	return &pb.HelloReply{Message: "Hello " + in.GetName()}, nil
+}
+
 /*
+生成代码  cmd,git bash，powershell都可以执行，重开
+$ cd ../pubsub-proto-ca
+lucky@DESKTOP-OG5FQBI MINGW64 /c/projectgo/gotest/pubsub-proto-ca (main)
+$ protoc --go_out=. --go-grpc_out=. hello.proto
+
+
 客户端就可以基于 CA 证书对服务器进行证书验证
 
 为了避免证书的传递过程中被篡改，可以通过一个安全可靠的根证书分别对服务器和客户端的证书进行签名。
@@ -116,9 +183,10 @@ openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out c
 签名的过程中引入了一个新的以. csr 为后缀名的文件，它表示证书签名请求文件。
 在证书签名完成之后可以删除. csr 文件。
 
-到main.go和证书同一级目录下执行
-PS C:\projectgo\gotest> cd .\pubsub-proto-ca\
-PS C:\projectgo\gotest\pubsub-proto-ca> go run main.go
-2025/07/24 19:08:56 gRPC Pubsub server started on :1234
+所有程序统一在执行目录C:\projectgo\gotest下执行
+PS C:\projectgo\gotest> go run .\pubsub-proto-ca\main.go
+API server listening at: 127.0.0.1:55474
+Working dir: C:\projectgo\gotest
+2025/07/25 17:28:00 gRPC Pubsub server started on :1234
 
 */
