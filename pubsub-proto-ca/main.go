@@ -5,20 +5,20 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/moby/pubsub"
-	"google.golang.org/grpc"
-
 	pb "github.com/lucky2688/gotest/pubsub-proto-ca/protobuf" //注意自己的路径
+	"github.com/moby/pubsub"
 )
 
 type PubsubService struct {
@@ -55,6 +55,20 @@ func (p *PubsubService) Subscribe(filter *pb.String, stream pb.PubsubService_Sub
 	return nil
 }
 
+// 使用接口实现，可扩展、测试、解耦,用 JWT、OAuth2、API Key 或任何其他认证方式替换掉当前逻辑
+type AuthService interface {
+	Auth(ctx context.Context) error
+}
+
+/*
+type MockAuth struct{}
+func (m *MockAuth) Auth(ctx context.Context) error {
+    return nil // 或者根据需要模拟失败
+}
+
+srv := &helloService{auth: &MockAuth{}}
+*/
+
 // 加入token认证
 type Authentication struct {
 	User     string
@@ -62,7 +76,7 @@ type Authentication struct {
 }
 type helloService struct {
 	pb.UnimplementedHelloServiceServer
-	auth *Authentication
+	auth AuthService
 }
 
 func (a *Authentication) Auth(ctx context.Context) error {
@@ -94,14 +108,10 @@ func main() {
 		log.Fatalf("Getwd error: %v", err)
 	}
 	fmt.Println("Working dir:", dir)
-	lis, err := net.Listen("tcp", ":1234")
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
 
 	certificate, err := tls.LoadX509KeyPair("pubsub-proto-ca/server.crt", "pubsub-proto-ca/server.key")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to load server cert/key: %v", err)
 	}
 
 	certPool := x509.NewCertPool()
@@ -113,24 +123,51 @@ func main() {
 		log.Fatal("failed to append certs")
 	}
 
-	creds := credentials.NewTLS(&tls.Config{
+	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{certificate},
-		ClientAuth:   tls.RequireAndVerifyClientCert, // NOTE: this is optional!
-		ClientCAs:    certPool,
-	})
-	grpcServer := grpc.NewServer(grpc.Creds(creds))
-
-	pb.RegisterPubsubServiceServer(grpcServer, NewPubsubService())
-
-	// 注册 HelloService
-	auth := &Authentication{
-		User:     "admin",
-		Password: "123456",
+		//ClientAuth:   tls.RequireAndVerifyClientCert, // NOTE: this is optional!
+		ClientAuth: tls.RequestClientCert,
+		ClientCAs:  certPool,
+		NextProtos: []string{"h2", "http/1.1"}, // 支持 h2 + http/1.1
 	}
+
+	// gRPC Server 设置
+	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+	pb.RegisterPubsubServiceServer(grpcServer, NewPubsubService())
+	// 注册 HelloService
+	auth := &Authentication{User: "admin", Password: "123456"}
 	pb.RegisterHelloServiceServer(grpcServer, &helloService{auth: auth}) // &helloService{} 不开启token认证
 
-	log.Println("gRPC Pubsub server started on :1234")
-	if err := grpcServer.Serve(lis); err != nil {
+	// HTTP mux 处理器（可放 REST API、静态资源）
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Welcome to Web HTTP Service"))
+	})
+
+	// 创建统一监听器
+	addr := ":1234"
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("failed to listen on %s: %v", addr, err)
+	}
+
+	tlsListener := tls.NewListener(lis, tlsConfig)
+	log.Println("gRPC + HTTP server started on", addr)
+
+	// 使用 http.Server 托管 gRPC + HTTP
+	server := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 判断是否为 gRPC 请求
+			if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
+				grpcServer.ServeHTTP(w, r)
+				return
+			}
+			// 普通 HTTP 请求
+			mux.ServeHTTP(w, r)
+		}),
+	}
+
+	if err := server.Serve(tlsListener); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }
@@ -189,4 +226,7 @@ API server listening at: 127.0.0.1:55474
 Working dir: C:\projectgo\gotest
 2025/07/25 17:28:00 gRPC Pubsub server started on :1234
 
+
+
+https://localhost:1234
 */
